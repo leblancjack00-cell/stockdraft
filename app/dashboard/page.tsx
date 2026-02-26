@@ -101,6 +101,8 @@ export default function Dashboard() {
           <div className="flex items-center gap-6">
   <div className="text-2xl font-black tracking-wide">STOCKDRAFT</div>
   <a href="/stocks" className="text-xs text-zinc-400 hover:text-white tracking-widest">STOCKS</a>
+  <a href="/draft" className="text-xs text-zinc-400 hover:text-white tracking-widest">DRAFT</a>
+  <a href="/roster" className="text-xs text-zinc-400 hover:text-white tracking-widest">ROSTER</a>
 </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-zinc-400">{email}</div>
