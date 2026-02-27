@@ -81,7 +81,6 @@ export default function Dashboard() {
 
   const [hoveredStock, setHoveredStock] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
-  const [notification, setNotification] = useState<string | null>(null)
 
   useEffect(() => {
     const t = setInterval(() => setTick(x => x + 1), 4000)
@@ -310,6 +309,7 @@ export default function Dashboard() {
         ::-webkit-scrollbar-track { background: #080b14; }
         ::-webkit-scrollbar-thumb { background: #1a2040; border-radius: 2px; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         .hover-row:hover { background: #0f1830 !important; cursor: default; }
         .nav-item:hover { background: #0d1225 !important; color: #c8d0e0 !important; }
@@ -331,13 +331,29 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {notification && (
-        <div style={{ background: 'linear-gradient(90deg, #0d1a2a, #0a1520)', borderBottom: '1px solid #1a3050', padding: '6px 24px', fontSize: 11, color: '#6ab4ff', display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 0.3s ease', flexShrink: 0 }}>
-          <span style={{ color: '#00ff88' }}>◆</span>
-          <span style={{ color: '#4a5568', marginRight: 4 }}>INFO</span>
-          {notification}
+      <div style={{ background: '#070a12', borderBottom: '1px solid #14182e', padding: '5px 0', overflow: 'hidden', flexShrink: 0, whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'inline-flex', gap: 48, animation: 'ticker 30s linear infinite' }}>
+          {[...Array(2)].map((_, repeat) => (
+            <span key={repeat} style={{ display: 'inline-flex', gap: 48 }}>
+              {(myRoster ?? []).map((stock: any, i: number) => {
+                const price = prices?.[stock.stocks?.ticker]
+                const pos = price?.changePct >= 0
+                return (
+                  <span key={i} style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.06em' }}>
+                    <span style={{ color: '#a0b4d0', fontWeight: 700 }}>{stock.stocks?.ticker}</span>
+                    {price && <span style={{ color: pos ? '#00ff88' : '#ff4466', marginLeft: 6 }}>{pos ? '▲' : '▼'} {Math.abs(price.changePct).toFixed(2)}%</span>}
+                    {price && <span style={{ color: '#2a3555', marginLeft: 6 }}>${price.close.toFixed(2)}</span>}
+                  </span>
+                )
+              })}
+              <span style={{ color: '#1a2535' }}>·</span>
+              <span style={{ fontSize: 11, color: '#2a3555' }}>STOCKDRAFT</span>
+              <span style={{ fontSize: 11, color: '#2a3555' }}>WEEK {matchup?.week ?? 1}</span>
+              <span style={{ fontSize: 11, color: '#2a3555' }}>SCORES UPDATE DAILY</span>
+            </span>
+          ))}
         </div>
-      )}
+      </div>
 
       <div style={{ background: '#0a0d1a', borderBottom: '1px solid #14182e', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, flexShrink: 0, overflowX: 'auto' }}>
         <span style={{ color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>SEASON PROGRESS</span>
