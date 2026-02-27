@@ -42,9 +42,6 @@ export default function RootLayout({
             { href: '/dashboard', label: 'HOME' },
 { href: '/dashboard', label: 'HOME' },
 { href: '/draft', label: 'DRAFT' },
-{ href: '/roster', label: 'ROSTER' },
-{ href: '/matchup', label: 'MATCHUP' },
-{ href: '/standings', label: 'STANDINGS' },
 { href: '/waivers', label: 'WAIVERS' },
 { href: '/stocks', label: 'STOCKS' },
               ].map(link => (
