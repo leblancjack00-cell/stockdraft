@@ -3,14 +3,25 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../lib/supabase'
 
+const SECTOR_COLORS: Record<string, string> = {
+  Technology: '#00bfff', Finance: '#8b5cf6', Automotive: '#f59e0b',
+  Energy: '#22c55e', Healthcare: '#ec4899', Retail: '#f97316',
+  Consumer: '#14b8a6', Entertainment: '#a855f7',
+}
+
+const font = "'JetBrains Mono', 'Fira Code', monospace"
+
 export default function Matchup() {
   const [session, setSession] = useState<any>(null)
-  const [matchup, setMatchup] = useState<any>(null)
-  const [myTeam, setMyTeam] = useState<any>(null)
-  const [oppTeam, setOppTeam] = useState<any>(null)
-  const [myScores, setMyScores] = useState<any[]>([])
-  const [oppScores, setOppScores] = useState<any[]>([])
   const [league, setLeague] = useState<any>(null)
+  const [myTeam, setMyTeam] = useState<any>(null)
+  const [opponent, setOpponent] = useState<any>(null)
+  const [myRoster, setMyRoster] = useState<any[]>([])
+  const [oppRoster, setOppRoster] = useState<any[]>([])
+  const [myScores, setMyScores] = useState<Record<string, number>>({})
+  const [oppScores, setOppScores] = useState<Record<string, number>>({})
+  const [prices, setPrices] = useState<Record<string, any>>({})
+  const [week, setWeek] = useState(1)
 
   useEffect(() => {
     const load = async () => {
@@ -20,137 +31,148 @@ export default function Matchup() {
       setSession(session)
 
       const { data: membership } = await supabase
-        .from('league_members')
-        .select('*, leagues(*)')
-        .eq('user_id', session.user.id)
-        .limit(1)
-        .single()
-
+        .from('league_members').select('*, leagues(*)')
+        .eq('user_id', session.user.id).limit(1).single()
       if (!membership) { window.location.href = '/dashboard'; return }
       setLeague(membership.leagues)
+      setMyTeam(membership)
 
-      const { data: matchupData } = await supabase
-        .from('matchups')
-        .select('*')
+      const { data: matchup } = await supabase
+        .from('matchups').select('*')
         .eq('league_id', membership.league_id)
-        .eq('week', 1)
         .or(`team_a_id.eq.${session.user.id},team_b_id.eq.${session.user.id}`)
-        .single()
+        .limit(1).single()
 
-      if (!matchupData) return
-      setMatchup(matchupData)
+      let oppId = null
+      if (matchup) {
+        setWeek(matchup.week)
+        oppId = matchup.team_a_id === session.user.id ? matchup.team_b_id : matchup.team_a_id
+        const { data: oppMember } = await supabase
+          .from('league_members').select('*')
+          .eq('league_id', membership.league_id).eq('user_id', oppId).single()
+        setOpponent(oppMember)
+      }
 
-      const oppId = matchupData.team_a_id === session.user.id
-        ? matchupData.team_b_id
-        : matchupData.team_a_id
+      const { data: myRosterData } = await supabase
+        .from('roster_slots').select('*, stocks(*)')
+        .eq('league_id', membership.league_id).eq('user_id', session.user.id)
+      setMyRoster(myRosterData ?? [])
 
-      const { data: members } = await supabase
-        .from('league_members')
-        .select('*')
-        .eq('league_id', membership.league_id)
-        .in('user_id', [session.user.id, oppId])
-
-      setMyTeam(members?.find((m: any) => m.user_id === session.user.id))
-      setOppTeam(members?.find((m: any) => m.user_id === oppId))
+      if (oppId) {
+        const { data: oppRosterData } = await supabase
+          .from('roster_slots').select('*, stocks(*)')
+          .eq('league_id', membership.league_id).eq('user_id', oppId)
+        setOppRoster(oppRosterData ?? [])
+      }
 
       const { data: scores } = await supabase
-        .from('weekly_scores')
-        .select('*, stocks(*)')
+        .from('weekly_scores').select('*')
         .eq('league_id', membership.league_id)
-        .eq('week', 1)
-        .in('user_id', [session.user.id, oppId])
+      const myS: Record<string, number> = {}
+      const oppS: Record<string, number> = {}
+      ;(scores ?? []).forEach((s: any) => {
+        if (s.user_id === session.user.id) myS[s.stock_id] = s.pts
+        else if (s.user_id === oppId) oppS[s.stock_id] = s.pts
+      })
+      setMyScores(myS)
+      setOppScores(oppS)
 
-      setMyScores(scores?.filter((s: any) => s.user_id === session.user.id) ?? [])
-      setOppScores(scores?.filter((s: any) => s.user_id === oppId) ?? [])
+      const { data: allStocks } = await supabase.from('stocks').select('ticker')
+      const tickers = (allStocks ?? []).map((s: any) => s.ticker).join(',')
+      const res = await fetch(`/api/prices?tickers=${tickers}`)
+      setPrices(await res.json())
     }
     load()
   }, [])
 
-  const myTotal = myScores.reduce((sum, s) => sum + s.pts, 0)
-  const oppTotal = oppScores.reduce((sum, s) => sum + s.pts, 0)
-  const winning = myTotal > oppTotal
+  const myTotal = Object.values(myScores).reduce((a, b) => a + b, 0)
+  const oppTotal = Object.values(oppScores).reduce((a, b) => a + b, 0)
+  const myWinning = myTotal >= oppTotal
 
-  return (
-    <div className="min-h-screen bg-[#070a12] text-zinc-100 p-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <a href="/dashboard" className="text-xs text-zinc-500 hover:text-zinc-300 mb-2 block">← Dashboard</a>
-          <div className="text-2xl font-black tracking-wide">Week 1 Matchup</div>
-          <div className="text-sm text-zinc-400 mt-1">{league?.name}</div>
+  const RosterTable = ({ roster, scores, label, isMe }: any) => {
+    const total = Object.values(scores).reduce((a: any, b: any) => a + b, 0) as number
+    return (
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 12 }}>
+          {label} · <span style={{ color: isMe ? '#00ff88' : '#c8d0e0', fontWeight: 700 }}>{(total as number).toFixed(1)} PTS</span>
         </div>
-
-        {!matchup ? (
-          <div className="rounded-xl border border-[#1a2040] bg-[#0b1022] p-8 text-center">
-            <div className="text-2xl mb-3">⚔️</div>
-            <div className="font-bold text-white mb-1">No matchup found</div>
-            <div className="text-sm text-zinc-400">Matchups are generated once the draft is complete</div>
+        <div style={{ background: '#0b1022', border: `1px solid ${isMe ? '#00ff8820' : '#1a2040'}`, borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 70px 60px', padding: '8px 14px', fontSize: 9, color: '#2a3555', letterSpacing: '0.1em', borderBottom: '1px solid #0f1530' }}>
+            <span>STOCK</span><span style={{ textAlign: 'right' }}>PRICE</span><span style={{ textAlign: 'right' }}>CHG%</span><span style={{ textAlign: 'right' }}>PTS</span>
           </div>
-        ) : (
-          <>
-            <div className="rounded-xl border border-[#1a2040] bg-[#0b1022] p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div className="text-center flex-1">
-                  <div className="text-xs tracking-widest text-zinc-400 mb-2">{myTeam?.team_name ?? 'Your Team'}</div>
-                  <div className={`text-5xl font-black ${winning ? 'text-emerald-400' : 'text-zinc-300'}`}>
-                    {myTotal.toFixed(1)}
+          {roster.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', fontSize: 11, color: '#2a3555' }}>No roster</div>
+          ) : roster.map((slot: any) => {
+            const price = prices[slot.stocks.ticker]
+            const isPos = price?.changePct >= 0
+            const pts = scores[slot.stock_id] ?? 0
+            return (
+              <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 70px 60px', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #0f1530' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: SECTOR_COLORS[slot.stocks.sector] ?? '#4a5568', boxShadow: `0 0 5px ${SECTOR_COLORS[slot.stocks.sector] ?? '#4a5568'}60`, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{slot.stocks.ticker}</div>
+                    <div style={{ fontSize: 9, color: '#4a5568' }}>{slot.stocks.sector}</div>
                   </div>
-                  {winning && <div className="text-xs text-emerald-400 mt-2 tracking-widest">WINNING</div>}
                 </div>
-                <div className="text-2xl text-zinc-600 px-4">VS</div>
-                <div className="text-center flex-1">
-                  <div className="text-xs tracking-widest text-zinc-400 mb-2">{oppTeam?.team_name ?? 'Opponent'}</div>
-                  <div className={`text-5xl font-black ${!winning && oppTotal > myTotal ? 'text-emerald-400' : 'text-zinc-300'}`}>
-                    {oppTotal.toFixed(1)}
-                  </div>
-                  {!winning && oppTotal > myTotal && <div className="text-xs text-emerald-400 mt-2 tracking-widest">WINNING</div>}
+                <div style={{ textAlign: 'right', fontSize: 11, color: '#c8d0e0' }}>{price ? `$${price.close.toFixed(2)}` : '—'}</div>
+                <div style={{ textAlign: 'right', fontSize: 11, color: price ? (isPos ? '#00ff88' : '#ff4466') : '#2a3555' }}>
+                  {price ? `${isPos ? '▲' : '▼'} ${Math.abs(price.changePct).toFixed(2)}%` : '—'}
+                </div>
+                <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: pts > 0 ? '#00ff88' : pts < 0 ? '#ff4466' : '#2a3555' }}>
+                  {pts !== 0 ? `${pts > 0 ? '+' : ''}${pts.toFixed(1)}` : '—'}
                 </div>
               </div>
-            </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
-            <div className="mb-4">
-              <div className="text-xs tracking-widest text-zinc-400 mb-3">YOUR LINEUP</div>
-              {myScores.length === 0 ? (
-                <div className="text-sm text-zinc-500 py-4">No scores yet — run the scoring engine first</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {myScores.map((score: any) => (
-                    <div key={score.id} className="rounded-xl border border-[#1a2040] bg-[#0b1022] p-4 flex items-center gap-4">
-                      <div className="flex-1">
-                        <div className="font-bold text-white">{score.stocks.ticker}</div>
-                        <div className="text-xs text-zinc-400">{score.stocks.name}</div>
-                      </div>
-                      <div className="text-sm text-zinc-400">{score.pct_change > 0 ? '▲' : '▼'} {Math.abs(score.pct_change).toFixed(2)}%</div>
-                      <div className={`text-lg font-black w-16 text-right ${score.pts >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {score.pts >= 0 ? '+' : ''}{score.pts.toFixed(1)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  return (
+    <div style={{ fontFamily: font, background: '#080b14', color: '#c8d0e0', minHeight: '100vh' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800;900&display=swap');`}</style>
 
-            <div>
-              <div className="text-xs tracking-widest text-zinc-400 mb-3">OPPONENT LINEUP</div>
-              {oppScores.length === 0 ? (
-                <div className="text-sm text-zinc-500 py-4">Opponent has no scores yet</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {oppScores.map((score: any) => (
-                    <div key={score.id} className="rounded-xl border border-[#1a2040] bg-[#0b1022] p-4 flex items-center gap-4">
-                      <div className="flex-1">
-                        <div className="font-bold text-white">{score.stocks.ticker}</div>
-                        <div className="text-xs text-zinc-400">{score.stocks.name}</div>
-                      </div>
-                      <div className="text-sm text-zinc-400">{score.pct_change > 0 ? '▲' : '▼'} {Math.abs(score.pct_change).toFixed(2)}%</div>
-                      <div className={`text-lg font-black w-16 text-right ${score.pts >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {score.pts >= 0 ? '+' : ''}{score.pts.toFixed(1)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+      {/* Status bar */}
+      <div style={{ background: '#0a0d1a', borderBottom: '1px solid #14182e', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <span style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.08em' }}>MATCHUP</span>
+        <span style={{ fontSize: 11, color: '#00ff88' }}>{league?.name}</span>
+        <span style={{ fontSize: 11, color: '#4a5568' }}>WEEK {week}</span>
+      </div>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+
+        {/* Score hero */}
+        <div style={{ background: '#0b1022', border: '1px solid #1a2040', borderRadius: 8, padding: 24, marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.08em', marginBottom: 8 }}>{myTeam?.team_name ?? 'YOUR TEAM'}</div>
+            <div style={{ fontSize: 48, fontWeight: 900, color: myWinning ? '#00ff88' : '#ff4466', lineHeight: 1 }}>{myTotal.toFixed(1)}</div>
+            <div style={{ fontSize: 9, color: myWinning ? '#00ff8860' : '#ff446660', marginTop: 6, letterSpacing: '0.08em' }}>{myWinning ? '▲ WINNING' : '▼ LOSING'}</div>
+          </div>
+
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: 11, color: '#2a3555', letterSpacing: '0.2em' }}>VS</div>
+            <div style={{ fontSize: 9, color: '#2a3555', marginTop: 4 }}>WK {week}</div>
+          </div>
+
+          <div style={{ flex: 1, textAlign: 'right' }}>
+            <div style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.08em', marginBottom: 8 }}>{opponent?.team_name ?? 'NO OPPONENT'}</div>
+            <div style={{ fontSize: 48, fontWeight: 900, color: !myWinning ? '#00ff88' : '#ff4466', lineHeight: 1 }}>{oppTotal.toFixed(1)}</div>
+            <div style={{ fontSize: 9, color: !myWinning ? '#00ff8860' : '#ff446660', marginTop: 6, letterSpacing: '0.08em' }}>{!myWinning ? '▲ WINNING' : '▼ LOSING'}</div>
+          </div>
+        </div>
+
+        {/* Rosters */}
+        <div style={{ display: 'flex', gap: 16 }}>
+          <RosterTable roster={myRoster} scores={myScores} label={myTeam?.team_name ?? 'YOUR TEAM'} isMe={true} />
+          <RosterTable roster={oppRoster} scores={oppScores} label={opponent?.team_name ?? 'OPPONENT'} isMe={false} />
+        </div>
+
+        {!opponent && (
+          <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11, color: '#2a3555', padding: 32, background: '#0b1022', border: '1px solid #1a2040', borderRadius: 8 }}>
+            No matchup scheduled yet. Matchups are set when your league has more members.
+          </div>
         )}
       </div>
     </div>
