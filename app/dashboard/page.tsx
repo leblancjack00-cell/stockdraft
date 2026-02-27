@@ -141,7 +141,7 @@ export default function Dashboard() {
     letterSpacing: '0.08em', fontFamily: font,
     borderBottom: activeTab === tab ? '2px solid #00ff88' : '2px solid transparent',
     color: activeTab === tab ? '#00ff88' : '#4a5568',
-    background: 'none', border: 'none',
+    background: 'none',
     borderBottom: activeTab === tab ? '2px solid #00ff88' : '2px solid transparent',
   } as any)
 
