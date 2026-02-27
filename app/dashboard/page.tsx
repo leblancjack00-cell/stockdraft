@@ -142,7 +142,6 @@ export default function Dashboard() {
     borderBottom: activeTab === tab ? '2px solid #00ff88' : '2px solid transparent',
     color: activeTab === tab ? '#00ff88' : '#4a5568',
     background: 'none',
-    borderBottom: activeTab === tab ? '2px solid #00ff88' : '2px solid transparent',
   } as any)
 
   return (
