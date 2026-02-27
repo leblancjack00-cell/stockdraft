@@ -77,6 +77,7 @@ export default function Dashboard() {
   const [foundLeague, setFoundLeague] = useState<any>(null)
   const [leagueMsg, setLeagueMsg] = useState('')
   const [leagueLoading, setLeagueLoading] = useState(false)
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
   const [hoveredStock, setHoveredStock] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
@@ -292,7 +293,12 @@ export default function Dashboard() {
     { id: 'roster', label: 'My Roster', icon: '📋' },
     { id: 'standings', label: 'Standings', icon: '🏆' },
     { id: 'waiver', label: 'Waiver Wire', icon: '🔄' },
-    { id: 'leagues', label: 'Leagues', icon: '🏛' },
+    { id: 'leagues', label: 'Leagues', icon: '🏛', dropdown: [
+      { label: 'My Leagues', action: 'leagues' },
+      { label: 'League Settings', action: 'league_settings' },
+      { label: 'Scoring Rules', action: 'scoring_rules' },
+      { label: 'Members', action: 'members' },
+    ]},
   ]
 
   return (
@@ -347,9 +353,26 @@ export default function Dashboard() {
             {league?.name ?? 'NO LEAGUE'}
           </div>
           {navItems.map(item => (
-            <div key={item.id} className="nav-item" onClick={() => setActiveTab(item.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', fontSize: 12, cursor: 'pointer', color: activeTab === item.id ? '#fff' : '#4a5568', background: activeTab === item.id ? '#0d1225' : 'transparent', borderLeft: `2px solid ${activeTab === item.id ? '#00ff88' : 'transparent'}`, textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.15s' }}>
+            <div key={item.id} className="nav-item"
+              onClick={() => setActiveTab(item.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', fontSize: 12, cursor: 'pointer', color: activeTab === item.id ? '#fff' : '#4a5568', background: activeTab === item.id ? '#0d1225' : 'transparent', borderLeft: `2px solid ${activeTab === item.id ? '#00ff88' : 'transparent'}`, textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.15s', position: 'relative' as const }}
+              onMouseEnter={() => (item as any).dropdown && setHoveredNav(item.id)}
+              onMouseLeave={() => setHoveredNav(null)}>
               <span>{item.icon}</span>{item.label}
+              {(item as any).dropdown && hoveredNav === item.id && (
+                <div style={{ position: 'absolute', left: '100%', top: 0, width: 200, background: '#0d1225', border: '1px solid #1a2040', borderRadius: 6, zIndex: 200, boxShadow: '4px 4px 20px rgba(0,0,0,0.5)' }}
+                  onMouseEnter={() => setHoveredNav(item.id)}
+                  onMouseLeave={() => setHoveredNav(null)}>
+                  {(item as any).dropdown.map((d: any) => (
+                    <div key={d.action} onClick={(e) => { e.stopPropagation(); setActiveTab(d.action); setHoveredNav(null) }}
+                      style={{ padding: '11px 16px', fontSize: 12, color: '#c8d0e0', cursor: 'pointer', borderBottom: '1px solid #14182e', letterSpacing: '0.06em' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#14182e')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      {d.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           <div style={{ margin: '20px 0', borderTop: '1px solid #14182e' }} />
@@ -721,7 +744,118 @@ export default function Dashboard() {
             </>
           )}
 
-          {activeTab === 'leagues' && (
+          {activeTab === 'league_settings' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}><span style={cardTitleStyle}>League Settings</span></div>
+                <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {[
+                    ['League Name', league?.name ?? '—'],
+                    ['Season', league?.season ?? '—'],
+                    ['Status', league?.status?.toUpperCase() ?? 'ACTIVE'],
+                    ['Invite Code', league?.invite_code ?? '—'],
+                    ['Current Week', `Week ${league?.week ?? 1}`],
+                    ['Visibility', league?.is_public ? 'Public' : 'Private'],
+                    ['Teams', members.length.toString()],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
+                      <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
+                      <div style={{ fontSize: 12, color: '#c8d0e0' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}><span style={cardTitleStyle}>Draft Settings</span></div>
+                <div style={{ padding: 20 }}>
+                  {[
+                    ['Draft Type', 'Snake Draft'],
+                    ['Seconds Per Pick', '60 seconds'],
+                    ['Draft Order', 'Randomized'],
+                    ['Waiver Wire', 'Enabled'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
+                      <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
+                      <div style={{ fontSize: 12, color: '#c8d0e0' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'scoring_rules' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}><span style={cardTitleStyle}>Base Scoring</span></div>
+                <div style={{ padding: 20 }}>
+                  {[
+                    ['Format', 'Head-to-Head Weekly'],
+                    ['Scoring Type', 'Price % Change'],
+                    ['Points Per 1% Gain', '+5 pts'],
+                    ['Points Per 1% Loss', '-5 pts'],
+                    ['Score Updates', 'Daily after market close'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
+                      <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
+                      <div style={{ fontSize: 12, color: '#c8d0e0' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}><span style={cardTitleStyle}>Bonus Points</span></div>
+                <div style={{ padding: 20 }}>
+                  {[
+                    ['52-Week High Hit', '+10 pts'],
+                    ['Beat Earnings Estimate', '+15 pts'],
+                    ['Gain Over 10% in a Week', '+20 pts'],
+                    ['Stock Halted / Delisted', '-25 pts'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
+                      <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
+                      <div style={{ fontSize: 12, color: value.startsWith('-') ? '#ff4466' : '#00ff88' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}><span style={cardTitleStyle}>Playoff Structure</span></div>
+                <div style={{ padding: 20 }}>
+                  {[
+                    ['Regular Season', 'Weeks 1–10'],
+                    ['Playoffs', 'Weeks 11–13'],
+                    ['Playoff Teams', 'Top 4'],
+                    ['Championship', 'Week 13'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
+                      <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
+                      <div style={{ fontSize: 12, color: '#c8d0e0' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'members' && (
+            <div style={cardStyle}>
+              <div style={cardHeaderStyle}><span style={cardTitleStyle}>League Members</span></div>
+              <div>
+                {members.map((m: any) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #0f1530', background: m.user_id === session?.user?.id ? '#0d1f15' : 'transparent' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{m.team_name} {m.user_id === session?.user?.id && <span style={{ fontSize: 9, color: '#00ff88', marginLeft: 6 }}>YOU</span>}</div>
+                      <div style={{ fontSize: 10, color: '#2a3555', marginTop: 2 }}>Joined {new Date(m.joined_at ?? m.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: m.user_id === league?.commissioner_id ? '#00ff88' : '#4a5568' }}>
+                      {m.user_id === league?.commissioner_id ? '⭐ Commissioner' : 'Member'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
             <>
               {leagueMsg && <div style={{ padding: '8px 16px', background: '#081a10', border: '1px solid #00ff8840', borderRadius: 6, fontSize: 11, color: '#00ff88' }}>{leagueMsg}</div>}
               {leagues.length > 0 && (
