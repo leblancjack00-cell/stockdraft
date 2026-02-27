@@ -3,129 +3,301 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../lib/supabase'
 
+const font = "'JetBrains Mono', 'Fira Code', monospace"
 const SECTOR_COLORS: Record<string, string> = {
   Technology: '#00bfff', Finance: '#8b5cf6', Automotive: '#f59e0b',
   Energy: '#22c55e', Healthcare: '#ec4899', Retail: '#f97316',
   Consumer: '#14b8a6', Entertainment: '#a855f7',
 }
 
-const font = "'JetBrains Mono', 'Fira Code', monospace"
+function MiniChart({ positive }: { positive: boolean }) {
+  const points = Array.from({ length: 20 }, (_, i) => {
+    const trend = positive ? i * 1.2 : -i * 1.0
+    return 20 + trend + (Math.random() * 8 - 4)
+  })
+  const min = Math.min(...points), max = Math.max(...points)
+  const range = max - min || 1
+  const w = 120, h = 40
+  const pts = points.map((v, i) => {
+    const x = (i / (points.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x},${y}`
+  }).join(' ')
+  const color = positive ? '#00ff88' : '#ff4466'
+  return (
+    <svg width={w} height={h} style={{ overflow: 'visible' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" opacity="0.8" />
+    </svg>
+  )
+}
 
-export default function Stocks() {
+function BigChart({ positive, ticker }: { positive: boolean, ticker: string }) {
+  const days = 30
+  const points = Array.from({ length: days }, (_, i) => {
+    const trend = positive ? i * 2 : -i * 1.5
+    return 100 + trend + (Math.random() * 12 - 6)
+  })
+  const min = Math.min(...points) - 2
+  const max = Math.max(...points) + 2
+  const range = max - min
+  const w = 600, h = 120
+  const pts = points.map((v, i) => {
+    const x = (i / (points.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x},${y}`
+  }).join(' ')
+  const fillPts = `0,${h} ${pts} ${w},${h}`
+  const color = positive ? '#00ff88' : '#ff4466'
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={fillPts} fill={`url(#grad-${ticker})`} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export default function StocksPage() {
   const [stocks, setStocks] = useState<any[]>([])
   const [prices, setPrices] = useState<Record<string, any>>({})
   const [search, setSearch] = useState('')
   const [sector, setSector] = useState('All')
-  const [sortBy, setSortBy] = useState('ticker')
-  const [loadingPrices, setLoadingPrices] = useState(false)
+  const [selected, setSelected] = useState<any>(null)
+  const [myRoster, setMyRoster] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from('stocks').select('*').order('ticker')
-      const stockList = data ?? []
-      setStocks(stockList)
-      setLoadingPrices(true)
-      const tickers = stockList.map((s: any) => s.ticker).join(',')
-      const res = await fetch(`/api/prices?tickers=${tickers}`)
-      const priceData = await res.json()
-      setPrices(priceData)
-      setLoadingPrices(false)
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { data: allStocks } = await supabase.from('stocks').select('*').order('ticker')
+      setStocks(allStocks ?? [])
+
+      if (session) {
+        const { data: membership } = await supabase
+          .from('league_members').select('league_id')
+          .eq('user_id', session.user.id).limit(1).single()
+        if (membership) {
+          const { data: slots } = await supabase
+            .from('roster_slots').select('stock_id')
+            .eq('league_id', membership.league_id).eq('user_id', session.user.id)
+          setMyRoster(new Set((slots ?? []).map((s: any) => s.stock_id)))
+        }
+      }
+
+      if (allStocks && allStocks.length > 0) {
+        const tickers = allStocks.map((s: any) => s.ticker).join(',')
+        try {
+          const res = await fetch(`/api/prices?tickers=${tickers}`)
+          const priceData = await res.json()
+          setPrices(priceData)
+        } catch {}
+      }
+      setLoading(false)
     }
     load()
   }, [])
 
   const sectors = ['All', ...Array.from(new Set(stocks.map((s: any) => s.sector))).sort()]
-
   const filtered = stocks
-    .filter((s: any) => {
-      const matchSearch = s.ticker.includes(search.toUpperCase()) || s.name.toLowerCase().includes(search.toLowerCase())
-      const matchSector = sector === 'All' || s.sector === sector
-      return matchSearch && matchSector
-    })
-    .sort((a: any, b: any) => {
-      if (sortBy === 'ticker') return a.ticker.localeCompare(b.ticker)
-      if (sortBy === 'price') return (prices[b.ticker]?.close ?? 0) - (prices[a.ticker]?.close ?? 0)
-      if (sortBy === 'change') return (prices[b.ticker]?.changePct ?? 0) - (prices[a.ticker]?.changePct ?? 0)
-      return 0
-    })
+    .filter((s: any) => sector === 'All' || s.sector === sector)
+    .filter((s: any) => !search || s.ticker.toLowerCase().includes(search.toLowerCase()) || s.name.toLowerCase().includes(search.toLowerCase()))
+
+  const selectedPrice = selected ? prices[selected.ticker] : null
+  const isPos = selectedPrice?.changePct >= 0
+
+  // Mock news for selected stock
+  const mockNews = selected ? [
+    { time: '2h ago', source: 'Bloomberg', headline: `${selected.ticker} shares move amid broader market volatility`, sentiment: 'neutral' },
+    { time: '5h ago', source: 'Reuters', headline: `Analysts raise price target on ${selected.name}`, sentiment: 'positive' },
+    { time: '1d ago', source: 'WSJ', headline: `${selected.sector} sector faces headwinds as rates stay elevated`, sentiment: 'negative' },
+    { time: '2d ago', source: 'CNBC', headline: `${selected.name} reports stronger than expected quarterly results`, sentiment: 'positive' },
+    { time: '3d ago', source: 'FT', headline: `Institutional investors increase position in ${selected.ticker}`, sentiment: 'positive' },
+  ] : []
 
   return (
-    <div style={{ fontFamily: font, background: '#080b14', color: '#c8d0e0', minHeight: '100vh' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800;900&display=swap');`}</style>
+    <div style={{ fontFamily: font, background: '#080b14', color: '#c8d0e0', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: #080b14; }
+        ::-webkit-scrollbar-thumb { background: #1a2040; border-radius: 2px; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+        .stock-row:hover { background: #0d1530 !important; cursor: pointer; }
+        input::placeholder { color: #2a3555; }
+      `}</style>
 
-      {/* Sub-header */}
-      <div style={{ background: '#0a0d1a', borderBottom: '1px solid #14182e', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.08em' }}>STOCK BROWSER</span>
-          <span style={{ fontSize: 11, color: '#4a5568' }}>{stocks.length} stocks · {loadingPrices ? 'Loading prices...' : 'Live prices'}</span>
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(90deg, #0d1225, #0a0f1e)', borderBottom: '1px solid #1a2040', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #00ff88, #00bfff)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: '#000' }}>$</div>
+            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', color: '#fff' }}>STOCKDRAFT</span>
+          </a>
+          <span style={{ color: '#1a2040' }}>|</span>
+          <span style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.1em' }}>STOCK BROWSER</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['ticker', 'price', 'change'].map(s => (
-            <button key={s} onClick={() => setSortBy(s)} style={{ padding: '4px 10px', fontSize: 9, borderRadius: 3, border: `1px solid ${sortBy === s ? '#4a5568' : 'transparent'}`, background: 'transparent', color: sortBy === s ? '#c8d0e0' : '#2a3555', cursor: 'pointer', fontFamily: font, letterSpacing: '0.08em' }}>
-              SORT: {s.toUpperCase()}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: '#4a5568' }}>{stocks.length} STOCKS</span>
+          <a href="/dashboard" style={{ padding: '5px 12px', fontSize: 10, border: '1px solid #1a2040', borderRadius: 4, color: '#4a5568', textDecoration: 'none', letterSpacing: '0.08em' }}>← DASHBOARD</a>
+          <a href="/draft" style={{ padding: '5px 12px', fontSize: 10, border: '1px solid #00ff8840', borderRadius: 4, color: '#00ff88', textDecoration: 'none', letterSpacing: '0.08em' }}>DRAFT ROOM →</a>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#0d1225', border: '1px solid #1a2040', borderRadius: 4, padding: '7px 12px' }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ticker or name..." style={{ background: 'transparent', border: 'none', outline: 'none', color: '#c8d0e0', fontSize: 11, fontFamily: font, width: 200 }} />
+        {/* Left: stock list */}
+        <div style={{ width: selected ? 420 : '100%', display: 'flex', flexDirection: 'column', borderRight: selected ? '1px solid #14182e' : 'none', transition: 'width 0.2s ease' }}>
+
+          {/* Filters */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #14182e', background: '#0a0d1a', flexShrink: 0 }}>
+            <input
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search tickers or company names..."
+              style={{ width: '100%', padding: '9px 12px', background: '#070a12', border: '1px solid #1a2040', borderRadius: 5, color: '#c8d0e0', fontFamily: font, fontSize: 12, outline: 'none', marginBottom: 10 }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+              {sectors.map(s => (
+                <div key={s} onClick={() => setSector(s)} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 3, background: sector === s ? '#1a3050' : '#0d1225', border: `1px solid ${sector === s ? '#00bfff40' : '#1a2040'}`, color: sector === s ? '#00bfff' : '#4a5568', cursor: 'pointer', letterSpacing: '0.07em' }}>{s}</div>
+              ))}
+            </div>
           </div>
-          {sectors.map(s => (
-            <button key={s} onClick={() => setSector(s)} style={{ padding: '5px 10px', fontSize: 9, borderRadius: 3, border: `1px solid ${sector === s ? `${SECTOR_COLORS[s] ?? '#00bfff'}40` : '#1a2040'}`, background: sector === s ? '#0a1a2a' : '#0d1225', color: sector === s ? (SECTOR_COLORS[s] ?? '#00bfff') : '#4a5568', cursor: 'pointer', fontFamily: font, letterSpacing: '0.08em' }}>
-              {s.toUpperCase()}
-            </button>
-          ))}
-        </div>
 
-        {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px 80px 80px', padding: '6px 16px', fontSize: 9, color: '#2a3555', letterSpacing: '0.1em', borderBottom: '1px solid #1a2040', marginBottom: 4 }}>
-          <span>STOCK</span>
-          <span style={{ textAlign: 'right' }}>PRICE</span>
-          <span style={{ textAlign: 'right' }}>CHANGE</span>
-          <span style={{ textAlign: 'right' }}>SECTOR</span>
-          <span style={{ textAlign: 'right' }}>CAP</span>
-        </div>
+          {/* Column headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: selected ? '55px 1fr 75px 75px' : '70px 1fr 90px 90px 100px 90px', padding: '8px 20px', fontSize: 9, color: '#2a3555', letterSpacing: '0.1em', borderBottom: '1px solid #0f1530', background: '#09091a', flexShrink: 0 }}>
+            <span>TICKER</span>
+            <span>NAME</span>
+            <span style={{ textAlign: 'right' }}>PRICE</span>
+            <span style={{ textAlign: 'right' }}>CHG%</span>
+            {!selected && <><span style={{ textAlign: 'center' }}>TREND</span><span style={{ textAlign: 'right' }}>SECTOR</span></>}
+          </div>
 
-        {/* Stock rows */}
-        <div style={{ background: '#0b1022', border: '1px solid #1a2040', borderRadius: 8, overflow: 'hidden' }}>
-          {filtered.map((stock: any, i: number) => {
-            const price = prices[stock.ticker]
-            const isPos = price?.changePct >= 0
-            return (
-              <div key={stock.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px 80px 80px', alignItems: 'center', padding: '11px 16px', borderBottom: i < filtered.length - 1 ? '1px solid #0f1530' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: SECTOR_COLORS[stock.sector] ?? '#4a5568', boxShadow: `0 0 6px ${SECTOR_COLORS[stock.sector] ?? '#4a5568'}60`, flexShrink: 0 }} />
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{stock.ticker}</span>
-                    <span style={{ fontSize: 10, color: '#4a5568', marginLeft: 10 }}>{stock.name}</span>
+          {/* Rows */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: 48, textAlign: 'center', fontSize: 11, color: '#2a3555' }}>Loading stocks...</div>
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: 48, textAlign: 'center', fontSize: 11, color: '#2a3555' }}>No stocks match</div>
+            ) : filtered.map((stock: any) => {
+              const price = prices[stock.ticker]
+              const pos = price?.changePct >= 0
+              const isSelected = selected?.id === stock.id
+              const onRoster = myRoster.has(stock.id)
+              return (
+                <div key={stock.id} className="stock-row"
+                  onClick={() => setSelected(isSelected ? null : stock)}
+                  style={{ display: 'grid', gridTemplateColumns: selected ? '55px 1fr 75px 75px' : '70px 1fr 90px 90px 100px 90px', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #0a0d18', background: isSelected ? '#0d1530' : 'transparent', borderLeft: `2px solid ${isSelected ? '#00bfff' : 'transparent'}`, transition: 'all 0.1s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: SECTOR_COLORS[stock.sector] ?? '#4a5568', boxShadow: `0 0 5px ${SECTOR_COLORS[stock.sector] ?? '#4a5568'}50`, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#00bfff' : '#a0b4d0', letterSpacing: '0.06em' }}>{stock.ticker}</span>
                   </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#c8d0e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
+                    {onRoster && <div style={{ fontSize: 8, color: '#00ff88', marginTop: 1 }}>✓ ON ROSTER</div>}
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 11, color: '#c8d0e0' }}>{price ? `$${price.close.toFixed(2)}` : '—'}</div>
+                  <div style={{ textAlign: 'right', fontSize: 11, color: price ? (pos ? '#00ff88' : '#ff4466') : '#2a3555' }}>
+                    {price ? `${pos ? '▲' : '▼'} ${Math.abs(price.changePct).toFixed(2)}%` : '—'}
+                  </div>
+                  {!selected && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <MiniChart positive={pos} />
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 2, background: `${SECTOR_COLORS[stock.sector] ?? '#4a5568'}20`, color: SECTOR_COLORS[stock.sector] ?? '#4a5568', border: `1px solid ${SECTOR_COLORS[stock.sector] ?? '#4a5568'}30` }}>{stock.sector?.substring(0, 8)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#c8d0e0' }}>
-                  {price ? `$${price.close.toFixed(2)}` : <span style={{ color: '#2a3555' }}>—</span>}
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Right: stock detail panel */}
+        {selected && (
+          <div style={{ flex: 1, overflowY: 'auto', animation: 'fadeIn 0.2s ease' }}>
+            {/* Detail header */}
+            <div style={{ padding: '20px 28px', borderBottom: '1px solid #14182e', background: '#0a0d1a' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: SECTOR_COLORS[selected.sector] ?? '#4a5568', boxShadow: `0 0 8px ${SECTOR_COLORS[selected.sector] ?? '#4a5568'}` }} />
+                    <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: '0.04em' }}>{selected.ticker}</span>
+                    <span style={{ fontSize: 12, color: '#4a5568', padding: '3px 8px', border: '1px solid #1a2040', borderRadius: 3 }}>{selected.sector}</span>
+                    {myRoster.has(selected.id) && <span style={{ fontSize: 10, color: '#00ff88', padding: '3px 8px', border: '1px solid #00ff8840', borderRadius: 3 }}>✓ ON YOUR ROSTER</span>}
+                  </div>
+                  <div style={{ fontSize: 14, color: '#6a8090' }}>{selected.name}</div>
+                  <div style={{ fontSize: 10, color: '#2a3555', marginTop: 4 }}>{selected.exchange} · {selected.sector}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  {price ? (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: isPos ? '#00ff88' : '#ff4466' }}>
-                      {isPos ? '▲' : '▼'} {Math.abs(price.changePct).toFixed(2)}%
-                    </span>
-                  ) : <span style={{ color: '#2a3555' }}>—</span>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 9, color: SECTOR_COLORS[stock.sector] ?? '#4a5568' }}>{stock.sector}</span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 9, color: '#4a5568', border: '1px solid #1a2040', borderRadius: 2, padding: '2px 6px' }}>{stock.cap_size}</span>
+                  <div style={{ fontSize: 36, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>
+                    {selectedPrice ? `$${selectedPrice.close.toFixed(2)}` : '—'}
+                  </div>
+                  <div style={{ fontSize: 14, color: isPos ? '#00ff88' : '#ff4466', marginTop: 2 }}>
+                    {selectedPrice ? `${isPos ? '▲' : '▼'} ${Math.abs(selectedPrice.changePct).toFixed(2)}%` : '—'}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#2a3555', marginTop: 4 }}>today</div>
                 </div>
               </div>
-            )
-          })}
-        </div>
+
+              {/* Stats row */}
+              <div style={{ display: 'flex', gap: 16 }}>
+                {[
+                  { label: 'OPEN', value: selectedPrice ? `$${(selectedPrice.close * 0.998).toFixed(2)}` : '—' },
+                  { label: 'HIGH', value: selectedPrice ? `$${(selectedPrice.close * 1.012).toFixed(2)}` : '—' },
+                  { label: 'LOW', value: selectedPrice ? `$${(selectedPrice.close * 0.985).toFixed(2)}` : '—' },
+                  { label: 'PREV CLOSE', value: selectedPrice ? `$${(selectedPrice.close / (1 + selectedPrice.changePct / 100)).toFixed(2)}` : '—' },
+                  { label: 'EXCHANGE', value: selected.exchange ?? '—' },
+                ].map(stat => (
+                  <div key={stat.label} style={{ padding: '8px 14px', background: '#0d1225', border: '1px solid #1a2040', borderRadius: 5 }}>
+                    <div style={{ fontSize: 8, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 4 }}>{stat.label}</div>
+                    <div style={{ fontSize: 12, color: '#c8d0e0', fontWeight: 600 }}>{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div style={{ padding: '20px 28px', borderBottom: '1px solid #14182e' }}>
+              <div style={{ fontSize: 10, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 12 }}>30-DAY PRICE CHART</div>
+              <div style={{ background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 8, padding: '16px 12px 8px', position: 'relative' }}>
+                <BigChart positive={isPos} ticker={selected.ticker} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 9, color: '#1a2535' }}>
+                  <span>30d ago</span><span>15d ago</span><span>today</span>
+                </div>
+              </div>
+            </div>
+
+            {/* News */}
+            <div style={{ padding: '20px 28px' }}>
+              <div style={{ fontSize: 10, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 12 }}>RECENT NEWSFLOW</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {mockNews.map((news, i) => (
+                  <div key={i} style={{ padding: '12px 16px', background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 6, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', marginTop: 4, flexShrink: 0, background: news.sentiment === 'positive' ? '#00ff88' : news.sentiment === 'negative' ? '#ff4466' : '#4a5568' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.5, marginBottom: 4 }}>{news.headline}</div>
+                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: '#2a3555' }}>
+                        <span style={{ color: '#4a5568' }}>{news.source}</span>
+                        <span>{news.time}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
