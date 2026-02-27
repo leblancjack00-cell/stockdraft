@@ -31,16 +31,17 @@ function MiniChart({ positive }: { positive: boolean }) {
   )
 }
 
-function BigChart({ positive, ticker }: { positive: boolean, ticker: string }) {
-  const days = 30
+function BigChart({ positive, ticker, timeframe }: { positive: boolean, ticker: string, timeframe: string }) {
+  const days = timeframe === '1W' ? 7 : timeframe === '1M' ? 30 : timeframe === '3M' ? 90 : timeframe === '6M' ? 180 : 365
   const points = Array.from({ length: days }, (_, i) => {
-    const trend = positive ? i * 2 : -i * 1.5
-    return 100 + trend + (Math.random() * 12 - 6)
+    const trend = positive ? (i / days) * 20 : -(i / days) * 15
+    const noise = Math.sin(i * 0.4) * 3 + Math.sin(i * 0.15) * 5
+    return 100 + trend + noise + (Math.random() * 4 - 2)
   })
-  const min = Math.min(...points) - 2
-  const max = Math.max(...points) + 2
-  const range = max - min
-  const w = 600, h = 120
+  const min = Math.min(...points)
+  const max = Math.max(...points)
+  const range = max - min || 1
+  const w = 600, h = 140
   const pts = points.map((v, i) => {
     const x = (i / (points.length - 1)) * w
     const y = h - ((v - min) / range) * h
@@ -48,17 +49,41 @@ function BigChart({ positive, ticker }: { positive: boolean, ticker: string }) {
   }).join(' ')
   const fillPts = `0,${h} ${pts} ${w},${h}`
   const color = positive ? '#00ff88' : '#ff4466'
+  const yLabels = [0, 0.33, 0.66, 1].map(pct => ({
+    pct, value: min + pct * range, y: h - pct * h,
+  }))
   return (
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={fillPts} fill={`url(#grad-${ticker})`} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-    </svg>
+    <div style={{ position: 'relative' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 20, width: 48, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: 4 }}>
+        {[...yLabels].reverse().map((l, i) => (
+          <div key={i} style={{ fontSize: 9, color: '#2a3555', textAlign: 'right', paddingRight: 8 }}>{l.value.toFixed(1)}</div>
+        ))}
+      </div>
+      <div style={{ marginLeft: 52 }}>
+        <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible', display: 'block' }} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {yLabels.map((l, i) => (
+            <line key={i} x1="0" y1={l.y} x2={w} y2={l.y} stroke="#14182e" strokeWidth="1" />
+          ))}
+          <polygon points={fillPts} fill={`url(#grad-${ticker})`} />
+          <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+          {(() => {
+            const lastPt = pts.split(' ').pop()!.split(',')
+            return <circle cx={lastPt[0]} cy={lastPt[1]} r="3" fill={color} />
+          })()}
+        </svg>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: '#2a3555' }}>
+          <span>{timeframe === '1W' ? '7d ago' : timeframe === '1M' ? '30d ago' : timeframe === '3M' ? '3mo ago' : timeframe === '6M' ? '6mo ago' : '1yr ago'}</span>
+          <span>{timeframe === '1W' ? '4d ago' : timeframe === '1M' ? '15d ago' : timeframe === '3M' ? '6wk ago' : timeframe === '6M' ? '3mo ago' : '6mo ago'}</span>
+          <span style={{ color: '#4a5568' }}>today</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -68,6 +93,7 @@ export default function StocksPage() {
   const [search, setSearch] = useState('')
   const [sector, setSector] = useState('All')
   const [selected, setSelected] = useState<any>(null)
+  const [timeframe, setTimeframe] = useState('1M')
   const [myRoster, setMyRoster] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -273,12 +299,16 @@ export default function StocksPage() {
 
             {/* Chart */}
             <div style={{ padding: '20px 28px', borderBottom: '1px solid #14182e' }}>
-              <div style={{ fontSize: 10, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 12 }}>30-DAY PRICE CHART</div>
-              <div style={{ background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 8, padding: '16px 12px 8px', position: 'relative' }}>
-                <BigChart positive={isPos} ticker={selected.ticker} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 9, color: '#1a2535' }}>
-                  <span>30d ago</span><span>15d ago</span><span>today</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 10, color: '#2a3555', letterSpacing: '0.12em' }}>PRICE CHART</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {['1W', '1M', '3M', '6M', '1Y'].map(tf => (
+                    <div key={tf} onClick={() => setTimeframe(tf)} style={{ padding: '4px 10px', fontSize: 10, borderRadius: 3, background: timeframe === tf ? '#1a3050' : '#0d1225', border: `1px solid ${timeframe === tf ? '#00bfff60' : '#1a2040'}`, color: timeframe === tf ? '#00bfff' : '#4a5568', cursor: 'pointer', letterSpacing: '0.06em' }}>{tf}</div>
+                  ))}
                 </div>
+              </div>
+              <div style={{ background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 8, padding: '16px 12px 8px', position: 'relative' }}>
+                <BigChart positive={isPos} ticker={selected.ticker} timeframe={timeframe} />
               </div>
             </div>
 
