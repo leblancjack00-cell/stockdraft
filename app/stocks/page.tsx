@@ -31,13 +31,17 @@ function MiniChart({ positive }: { positive: boolean }) {
   )
 }
 
-function BigChart({ positive, ticker, timeframe }: { positive: boolean, ticker: string, timeframe: string }) {
+function BigChart({ positive, ticker, timeframe, basePrice }: { positive: boolean, ticker: string, timeframe: string, basePrice: number }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
   const days = timeframe === '1W' ? 7 : timeframe === '1M' ? 30 : timeframe === '3M' ? 90 : timeframe === '6M' ? 180 : 365
   const points = Array.from({ length: days }, (_, i) => {
     const trend = positive ? (i / days) * 20 : -(i / days) * 15
     const noise = Math.sin(i * 0.4) * 3 + Math.sin(i * 0.15) * 5
-    return 100 + trend + noise + (Math.random() * 4 - 2)
+    return (basePrice || 100) * (1 + (trend + noise + (Math.random() * 4 - 2)) / 100)
   })
+
   const min = Math.min(...points)
   const max = Math.max(...points)
   const range = max - min || 1
@@ -52,35 +56,96 @@ function BigChart({ positive, ticker, timeframe }: { positive: boolean, ticker: 
   const yLabels = [0, 0.33, 0.66, 1].map(pct => ({
     pct, value: min + pct * range, y: h - pct * h,
   }))
+
+  const periodChange = ((points[points.length - 1] - points[0]) / points[0]) * 100
+  const periodPos = periodChange >= 0
+
+  const hoverPrice = hoverIdx !== null ? points[hoverIdx] : null
+  const hoverX = hoverIdx !== null ? (hoverIdx / (points.length - 1)) * w : null
+  const hoverY = hoverIdx !== null ? h - ((points[hoverIdx] - min) / range) * h : null
+
+  const getDaysAgo = (idx: number) => {
+    const daysAgo = days - 1 - Math.round((idx / (points.length - 1)) * (days - 1))
+    if (daysAgo === 0) return 'today'
+    if (daysAgo === 1) return '1d ago'
+    if (daysAgo < 30) return `${daysAgo}d ago`
+    if (daysAgo < 365) return `${Math.round(daysAgo / 30)}mo ago`
+    return `${Math.round(daysAgo / 365)}yr ago`
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * w
+    const idx = Math.round((x / w) * (points.length - 1))
+    setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)))
+  }
+
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 20, width: 48, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: 4 }}>
-        {[...yLabels].reverse().map((l, i) => (
-          <div key={i} style={{ fontSize: 9, color: '#2a3555', textAlign: 'right', paddingRight: 8 }}>{l.value.toFixed(1)}</div>
-        ))}
+    <div>
+      {/* Period change badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: periodPos ? '#00ff88' : '#ff4466' }}>
+          {periodPos ? '▲' : '▼'} {Math.abs(periodChange).toFixed(2)}%
+        </span>
+        <span style={{ fontSize: 10, color: '#2a3555' }}>over {timeframe}</span>
+        {hoverPrice && (
+          <span style={{ fontSize: 12, color: '#c8d0e0', marginLeft: 12 }}>
+            ${hoverPrice.toFixed(2)} · <span style={{ color: '#4a5568' }}>{getDaysAgo(hoverIdx!)}</span>
+          </span>
+        )}
       </div>
-      <div style={{ marginLeft: 52 }}>
-        <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible', display: 'block' }} preserveAspectRatio="none">
-          <defs>
-            <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-              <stop offset="100%" stopColor={color} stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {yLabels.map((l, i) => (
-            <line key={i} x1="0" y1={l.y} x2={w} y2={l.y} stroke="#14182e" strokeWidth="1" />
+
+      <div style={{ position: 'relative' }}>
+        {/* Y axis */}
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 20, width: 52, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: 4 }}>
+          {[...yLabels].reverse().map((l, i) => (
+            <div key={i} style={{ fontSize: 9, color: '#2a3555', textAlign: 'right', paddingRight: 8 }}>${l.value.toFixed(2)}</div>
           ))}
-          <polygon points={fillPts} fill={`url(#grad-${ticker})`} />
-          <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-          {(() => {
-            const lastPt = pts.split(' ').pop()!.split(',')
-            return <circle cx={lastPt[0]} cy={lastPt[1]} r="3" fill={color} />
-          })()}
-        </svg>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: '#2a3555' }}>
-          <span>{timeframe === '1W' ? '7d ago' : timeframe === '1M' ? '30d ago' : timeframe === '3M' ? '3mo ago' : timeframe === '6M' ? '6mo ago' : '1yr ago'}</span>
-          <span>{timeframe === '1W' ? '4d ago' : timeframe === '1M' ? '15d ago' : timeframe === '3M' ? '6wk ago' : timeframe === '6M' ? '3mo ago' : '6mo ago'}</span>
-          <span style={{ color: '#4a5568' }}>today</span>
+        </div>
+
+        <div style={{ marginLeft: 56 }}>
+          <svg
+            ref={svgRef}
+            width="100%" viewBox={`0 0 ${w} ${h}`}
+            style={{ overflow: 'visible', display: 'block', cursor: 'crosshair' }}
+            preserveAspectRatio="none"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setHoverIdx(null)}
+          >
+            <defs>
+              <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {yLabels.map((l, i) => (
+              <line key={i} x1="0" y1={l.y} x2={w} y2={l.y} stroke="#14182e" strokeWidth="1" />
+            ))}
+            <polygon points={fillPts} fill={`url(#grad-${ticker})`} />
+            <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+
+            {/* Hover crosshair */}
+            {hoverIdx !== null && hoverX !== null && hoverY !== null && (
+              <>
+                <line x1={hoverX} y1={0} x2={hoverX} y2={h} stroke="#ffffff20" strokeWidth="1" strokeDasharray="3,3" />
+                <line x1={0} y1={hoverY} x2={w} y2={hoverY} stroke="#ffffff10" strokeWidth="1" strokeDasharray="3,3" />
+                <circle cx={hoverX} cy={hoverY} r="4" fill={color} stroke="#080b14" strokeWidth="2" />
+              </>
+            )}
+
+            {/* Last point dot when not hovering */}
+            {hoverIdx === null && (() => {
+              const lastPt = pts.split(' ').pop()!.split(',')
+              return <circle cx={lastPt[0]} cy={lastPt[1]} r="3" fill={color} />
+            })()}
+          </svg>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: '#2a3555' }}>
+            <span>{timeframe === '1W' ? '7d ago' : timeframe === '1M' ? '30d ago' : timeframe === '3M' ? '3mo ago' : timeframe === '6M' ? '6mo ago' : '1yr ago'}</span>
+            <span>{timeframe === '1W' ? '4d ago' : timeframe === '1M' ? '15d ago' : timeframe === '3M' ? '6wk ago' : timeframe === '6M' ? '3mo ago' : '6mo ago'}</span>
+            <span style={{ color: '#4a5568' }}>today</span>
+          </div>
         </div>
       </div>
     </div>
@@ -308,7 +373,7 @@ export default function StocksPage() {
                 </div>
               </div>
               <div style={{ background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 8, padding: '16px 12px 8px', position: 'relative' }}>
-                <BigChart positive={isPos} ticker={selected.ticker} timeframe={timeframe} />
+                <BigChart positive={isPos} ticker={selected.ticker} timeframe={timeframe} basePrice={selectedPrice?.close ?? 100} />
               </div>
             </div>
 
