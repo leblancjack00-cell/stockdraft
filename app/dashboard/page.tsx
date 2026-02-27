@@ -80,25 +80,6 @@ export default function Dashboard() {
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
   const [hoveredStock, setHoveredStock] = useState<string | null>(null)
-  const [tick, setTick] = useState(0)
-
-  useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 4000)
-    return () => clearInterval(t)
-  }, [])
-
-  useEffect(() => {
-    if (myRoster.length === 0) return
-    const msgs = [
-      'Scores update daily after market close',
-      `${myRoster[0]?.stocks?.ticker ?? ''} is your top pick this week`,
-      'Draft more stocks to boost your score',
-    ]
-    setNotification(msgs[tick % msgs.length])
-    const t = setTimeout(() => setNotification(null), 2800)
-    return () => clearTimeout(t)
-  }, [tick])
-
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
