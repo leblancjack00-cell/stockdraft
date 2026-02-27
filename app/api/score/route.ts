@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
+  // Verify this is called by Vercel cron or by us manually
+  const authHeader = request.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Get all active roster slots with stock and league info
   const { data: slots, error } = await supabase
     .from('roster_slots')
     .select('*, stocks(*), leagues(*)')
@@ -16,13 +21,11 @@ export async function POST(request: Request) {
   if (!slots || slots.length === 0) return NextResponse.json({ message: 'No roster slots found' })
 
   const apiKey = process.env.POLYGON_API_KEY
-  const week = 1 // hardcoded for now, will be dynamic later
+  const week = 1
 
-  // Get unique tickers
   const tickers = [...new Set(slots.map((s: any) => s.stocks.ticker))]
-
-  // Fetch prices for all tickers
   const prices: Record<string, any> = {}
+
   for (const ticker of tickers) {
     const res = await fetch(
       `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
@@ -39,7 +42,6 @@ export async function POST(request: Request) {
     await new Promise(r => setTimeout(r, 200))
   }
 
-  // Calculate and save scores
   const scoreRows = slots
     .filter((slot: any) => prices[slot.stocks.ticker])
     .map((slot: any) => {
@@ -68,3 +70,8 @@ export async function POST(request: Request) {
     scores: scoreRows,
   })
 }
+```
+
+Hit **Cmd + S**. Now add the cron secret to your `.env.local` file. Open it and add:
+```
+CRON_SECRET=mysecretkey123
