@@ -842,14 +842,14 @@ export default function Dashboard() {
             <div style={cardStyle}>
               <div style={cardHeaderStyle}><span style={cardTitleStyle}>League Members</span></div>
               <div>
-                {members.map((m: any) => (
+                {(leagues ?? []).map((m: any) => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #0f1530', background: m.user_id === session?.user?.id ? '#0d1f15' : 'transparent' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{m.team_name} {m.user_id === session?.user?.id && <span style={{ fontSize: 9, color: '#00ff88', marginLeft: 6 }}>YOU</span>}</div>
                       <div style={{ fontSize: 10, color: '#2a3555', marginTop: 2 }}>Joined {new Date(m.joined_at ?? m.created_at).toLocaleDateString()}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: m.user_id === league?.commissioner_id ? '#00ff88' : '#4a5568' }}>
-                      {m.user_id === league?.commissioner_id ? '⭐ Commissioner' : 'Member'}
+                    <div style={{ fontSize: 11, color: '#4a5568' }}>
+                      {'Member'}
                     </div>
                   </div>
                 ))}
