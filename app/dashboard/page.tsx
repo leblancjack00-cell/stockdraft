@@ -854,7 +854,8 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          )}
           {activeTab === 'leagues' && (
             <>
               {leagueMsg && <div style={{ padding: '8px 16px', background: '#081a10', border: '1px solid #00ff8840', borderRadius: 6, fontSize: 11, color: '#00ff88' }}>{leagueMsg}</div>}
