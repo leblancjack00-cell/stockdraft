@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '../lib/supabase'
 
 const font = "'JetBrains Mono', 'Fira Code', monospace"
@@ -36,11 +36,11 @@ function BigChart({ positive, ticker, timeframe, basePrice }: { positive: boolea
   const svgRef = useRef<SVGSVGElement>(null)
 
   const days = timeframe === '1W' ? 7 : timeframe === '1M' ? 30 : timeframe === '3M' ? 90 : timeframe === '6M' ? 180 : 365
-  const points = Array.from({ length: days }, (_, i) => {
+  const points = useMemo(() => Array.from({ length: days }, (_, i) => {
     const trend = positive ? (i / days) * 20 : -(i / days) * 15
     const noise = Math.sin(i * 0.4) * 3 + Math.sin(i * 0.15) * 5
     return (basePrice || 100) * (1 + (trend + noise + (Math.random() * 4 - 2)) / 100)
-  })
+  }), [days, positive, basePrice])
 
   const min = Math.min(...points)
   const max = Math.max(...points)
@@ -341,7 +341,7 @@ export default function StocksPage() {
                   <div style={{ fontSize: 14, color: isPos ? '#00ff88' : '#ff4466', marginTop: 2 }}>
                     {selectedPrice ? `${isPos ? '▲' : '▼'} ${Math.abs(selectedPrice.changePct).toFixed(2)}%` : '—'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#2a3555', marginTop: 4 }}>today</div>
+                  <div style={{ fontSize: 10, color: '#2a3555', marginTop: 4 }}>today · <span style={{ color: '#4a5568' }}>{timeframe} view</span></div>
                 </div>
               </div>
 
