@@ -734,7 +734,7 @@ export default function Dashboard() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ fontSize: 10, color: '#4a5568', border: '1px solid #1a2040', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em' }}>{lg.status?.toUpperCase()}</div>
                         {lg.commissioner_id === session?.user?.id && (
-                          <a href={`/league/${lg.id}`} style={{ fontSize: 10, color: '#00bfff', border: '1px solid #00bfff40', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em', textDecoration: 'none' }}>SETUP →</a>
+                          <a href={`/league/${lg.id}`} onClick={(e) => { e.stopPropagation(); window.location.href = `/league/${lg.id}` }} style={{ fontSize: 10, color: '#00bfff', border: '1px solid #00bfff40', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em', textDecoration: 'none' }}>SETUP →</a>
                         )}
                       </div>
                     </div>
