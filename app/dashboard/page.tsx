@@ -756,7 +756,7 @@ export default function Dashboard() {
                     ['Invite Code', league?.invite_code ?? '—'],
                     ['Current Week', `Week ${league?.week ?? 1}`],
                     ['Visibility', league?.is_public ? 'Public' : 'Private'],
-                    ['Teams', members.length.toString()],
+                    ['Teams', (members?.length ?? 0).toString()],
                   ].map(([label, value]) => (
                     <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 0', borderBottom: '1px solid #0f1530' }}>
                       <div style={{ fontSize: 12, color: '#4a5568' }}>{label}</div>
