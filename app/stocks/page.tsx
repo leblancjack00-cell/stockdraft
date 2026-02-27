@@ -112,14 +112,18 @@ export default function StocksPage() {
   const selectedPrice = selected ? prices[selected.ticker] : null
   const isPos = selectedPrice?.changePct >= 0
 
-  // Mock news for selected stock
-  const mockNews = selected ? [
-    { time: '2h ago', source: 'Bloomberg', headline: `${selected.ticker} shares move amid broader market volatility`, sentiment: 'neutral' },
-    { time: '5h ago', source: 'Reuters', headline: `Analysts raise price target on ${selected.name}`, sentiment: 'positive' },
-    { time: '1d ago', source: 'WSJ', headline: `${selected.sector} sector faces headwinds as rates stay elevated`, sentiment: 'negative' },
-    { time: '2d ago', source: 'CNBC', headline: `${selected.name} reports stronger than expected quarterly results`, sentiment: 'positive' },
-    { time: '3d ago', source: 'FT', headline: `Institutional investors increase position in ${selected.ticker}`, sentiment: 'positive' },
-  ] : []
+  const [news, setNews] = useState<any[]>([])
+  const [newsLoading, setNewsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!selected) return
+    setNews([])
+    setNewsLoading(true)
+    fetch(`/api/news?ticker=${selected.ticker}`)
+      .then(r => r.json())
+      .then(d => { setNews(d); setNewsLoading(false) })
+      .catch(() => setNewsLoading(false))
+  }, [selected])
 
   return (
     <div style={{ fontFamily: font, background: '#080b14', color: '#c8d0e0', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -282,17 +286,24 @@ export default function StocksPage() {
             <div style={{ padding: '20px 28px' }}>
               <div style={{ fontSize: 10, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 12 }}>RECENT NEWSFLOW</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {mockNews.map((news, i) => (
-                  <div key={i} style={{ padding: '12px 16px', background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 6, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', marginTop: 4, flexShrink: 0, background: news.sentiment === 'positive' ? '#00ff88' : news.sentiment === 'negative' ? '#ff4466' : '#4a5568' }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.5, marginBottom: 4 }}>{news.headline}</div>
-                      <div style={{ display: 'flex', gap: 10, fontSize: 9, color: '#2a3555' }}>
-                        <span style={{ color: '#4a5568' }}>{news.source}</span>
-                        <span>{news.time}</span>
+                {newsLoading && <div style={{ fontSize: 11, color: '#2a3555', padding: '20px 0' }}>Loading news...</div>}
+                {!newsLoading && news.length === 0 && <div style={{ fontSize: 11, color: '#2a3555', padding: '20px 0' }}>No recent news found.</div>}
+                {news.map((item, i) => (
+                  <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#0a0d1a', border: '1px solid #14182e', borderRadius: 6, display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = '#2a3555')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = '#14182e')}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', marginTop: 4, flexShrink: 0, background: item.sentiment === 'positive' ? '#00ff88' : item.sentiment === 'negative' ? '#ff4466' : '#4a5568' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.5, marginBottom: 4 }}>{item.headline}</div>
+                        <div style={{ display: 'flex', gap: 10, fontSize: 9, color: '#2a3555' }}>
+                          <span style={{ color: '#4a5568' }}>{item.source}</span>
+                          <span>{new Date(item.time).toLocaleDateString()}</span>
+                          <span style={{ color: '#00bfff' }}>↗ READ →</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             </div>
