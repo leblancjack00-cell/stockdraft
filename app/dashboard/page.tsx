@@ -97,20 +97,12 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#070a12] text-zinc-100 p-8">
       <div className="max-w-4xl mx-auto">
 
-        <div className="flex items-center justify-between mb-12">
-          <div className="flex items-center gap-6">
-  <div className="text-2xl font-black tracking-wide">STOCKDRAFT</div>
-  <a href="/stocks" className="text-xs text-zinc-400 hover:text-white tracking-widest">STOCKS</a>
-  <a href="/draft" className="text-xs text-zinc-400 hover:text-white tracking-widest">DRAFT</a>
-  <a href="/roster" className="text-xs text-zinc-400 hover:text-white tracking-widest">ROSTER</a>
+    <div className="flex items-center justify-between mb-12">
+  <div className="text-sm text-zinc-400">{email}</div>
+  <button onClick={signOut} className="rounded-md border border-zinc-700 px-4 py-2 text-xs font-bold tracking-widest text-zinc-400">
+    SIGN OUT
+  </button>
 </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-zinc-400">{email}</div>
-            <button onClick={signOut} className="rounded-md border border-zinc-700 px-4 py-2 text-xs font-bold tracking-widest text-zinc-400">
-              SIGN OUT
-            </button>
-          </div>
-        </div>
 
         {message && (
           <div className="mb-6 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
