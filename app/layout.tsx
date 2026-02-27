@@ -40,10 +40,12 @@ export default function RootLayout({
             <div style={{ display: 'flex', gap: 4 }}>
               {[
             { href: '/dashboard', label: 'HOME' },
+{ href: '/dashboard', label: 'HOME' },
 { href: '/draft', label: 'DRAFT' },
 { href: '/roster', label: 'ROSTER' },
 { href: '/matchup', label: 'MATCHUP' },
 { href: '/standings', label: 'STANDINGS' },
+{ href: '/waivers', label: 'WAIVERS' },
 { href: '/stocks', label: 'STOCKS' },
               ].map(link => (
                 <a key={link.href} href={link.href} style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#4a5568', textDecoration: 'none', borderRadius: 4 }}>
