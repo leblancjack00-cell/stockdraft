@@ -25,7 +25,7 @@ export default function Home() {
     if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
-      setError('Check your email to confirm your account.')
+      window.location.href = '/dashboard'
       setLoading(false)
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
