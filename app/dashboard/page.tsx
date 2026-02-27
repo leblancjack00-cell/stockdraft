@@ -733,7 +733,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ fontSize: 10, color: '#4a5568', border: '1px solid #1a2040', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em' }}>{lg.status?.toUpperCase()}</div>
-                        <a href={`/league/${lg.id}`} onClick={(e) => { e.stopPropagation(); window.location.href = `/league/${lg.id}` }} style={{ fontSize: 10, color: '#00bfff', border: '1px solid #00bfff40', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em', textDecoration: 'none' }}>SETTINGS →</a>
+                        <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.location.href = `/league/${lg.id}` }} style={{ fontSize: 10, color: '#00bfff', border: '1px solid #00bfff40', borderRadius: 3, padding: '3px 8px', letterSpacing: '0.08em', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>SETTINGS →</button>
                       </div>
                     </div>
                   ))}
