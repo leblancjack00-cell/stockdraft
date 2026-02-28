@@ -348,7 +348,7 @@ export default function Dashboard() {
             <span style={{ color: isWinning ? '#fff' : '#4a5568', fontWeight: 700 }}>{myMember?.team_name ?? 'YOU'}</span>
             <span style={{ fontSize: 15, fontWeight: 900, color: isWinning ? '#00ff88' : '#c8d0e0', marginLeft: 4 }}>{myTotal.toFixed(1)}</span>
           </div>
-          <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.15em', padding: '3px 10px', border: `1px solid ${isWinning ? '#00ff8840' : '#ff446640'}`, borderRadius: 3, color: isWinning ? '#00ff88' : '#ff4466' }}>{isWinning ? 'WINNING' : 'LOSING'}</div>
+          <div style={{ letterSpacing: '0.15em', padding: '3px 10px', border: `1px solid ${isWinning ? '#00ff8840' : '#ff446640'}`, borderRadius: 3, color: isWinning ? '#00ff88' : '#ff4466', fontSize: 9 }}>{isWinning ? 'WINNING' : 'LOSING'}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
             <span style={{ fontSize: 15, fontWeight: 900, color: !isWinning ? '#00ff88' : '#c8d0e0', marginRight: 4 }}>{oppTotal.toFixed(1)}</span>
             <span style={{ color: !isWinning ? '#fff' : '#4a5568', fontWeight: 700 }}>{opponent?.team_name ?? 'OPP'}</span>
