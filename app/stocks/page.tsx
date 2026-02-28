@@ -160,6 +160,7 @@ export default function StocksPage() {
   const [selected, setSelected] = useState<any>(null)
   const [timeframe, setTimeframe] = useState('1M')
   const [myRoster, setMyRoster] = useState<Set<string>>(new Set())
+  const [allOwnership, setAllOwnership] = useState<Record<string, string>>({}) // stock_id -> team_name
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -179,6 +180,15 @@ export default function StocksPage() {
             .from('roster_slots').select('stock_id')
             .eq('league_id', membership.league_id).eq('user_id', session.user.id)
           setMyRoster(new Set((slots ?? []).map((s: any) => s.stock_id)))
+
+          const { data: allSlots } = await supabase
+            .from('roster_slots').select('stock_id, user_id, league_members(team_name)')
+            .eq('league_id', membership.league_id)
+          const ownership: Record<string, string> = {}
+          ;(allSlots ?? []).forEach((s: any) => {
+            ownership[s.stock_id] = s.league_members?.team_name ?? 'Unknown'
+          })
+          setAllOwnership(ownership)
         }
       }
 
@@ -296,7 +306,12 @@ export default function StocksPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: '#c8d0e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stock.name}</div>
-                    {onRoster && <div style={{ fontSize: 8, color: '#00ff88', marginTop: 1 }}>✓ ON ROSTER</div>}
+                    {onRoster
+                      ? <div style={{ fontSize: 8, color: '#00ff88', marginTop: 1 }}>✓ YOUR ROSTER</div>
+                      : allOwnership[stock.id]
+                        ? <div style={{ fontSize: 8, color: '#2a3555', marginTop: 1 }}>● {allOwnership[stock.id]}</div>
+                        : <div style={{ fontSize: 8, color: '#1a4a2a', marginTop: 1 }}>◆ AVAILABLE</div>
+                    }
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 11, color: '#c8d0e0' }}>{price ? `$${price.close.toFixed(2)}` : '—'}</div>
                   <div style={{ textAlign: 'right', fontSize: 11, color: price ? (pos ? '#00ff88' : '#ff4466') : '#2a3555' }}>
@@ -359,6 +374,66 @@ export default function StocksPage() {
                     <div style={{ fontSize: 12, color: '#c8d0e0', fontWeight: 600 }}>{stat.value}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Fantasy Card */}
+            <div style={{ padding: '16px 28px', borderBottom: '1px solid #14182e', background: '#09091a' }}>
+              <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.15em', marginBottom: 12 }}>FANTASY STATUS</div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                {/* Ownership status */}
+                <div style={{ flex: 1, padding: '12px 16px', background: '#0d1225', border: `1px solid ${myRoster.has(selected.id) ? '#00ff8840' : allOwnership[selected.id] ? '#1a2040' : '#00ff8820'}`, borderRadius: 6 }}>
+                  <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 6 }}>OWNERSHIP</div>
+                  {myRoster.has(selected.id) ? (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#00ff88' }}>✓ YOUR ROSTER</div>
+                      <div style={{ fontSize: 10, color: '#4a5568', marginTop: 3 }}>Currently on your team</div>
+                    </div>
+                  ) : allOwnership[selected.id] ? (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#4a5568' }}>DRAFTED</div>
+                      <div style={{ fontSize: 10, color: '#c8d0e0', marginTop: 3 }}>{allOwnership[selected.id]}</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#00ff88' }}>AVAILABLE</div>
+                      <div style={{ fontSize: 10, color: '#4a5568', marginTop: 3 }}>Not on any roster</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* This week stats */}
+                <div style={{ flex: 1, padding: '12px 16px', background: '#0d1225', border: '1px solid #1a2040', borderRadius: 6 }}>
+                  <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 6 }}>PERFORMANCE</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: '#4a5568' }}>Today</span>
+                      <span style={{ color: isPos ? '#00ff88' : '#ff4466', fontWeight: 700 }}>{selectedPrice ? `${isPos ? '+' : ''}${selectedPrice.changePct.toFixed(2)}%` : '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: '#4a5568' }}>Sector</span>
+                      <span style={{ color: SECTOR_COLORS[selected.sector] ?? '#4a5568', fontSize: 10 }}>{selected.sector}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: '#4a5568' }}>Exchange</span>
+                      <span style={{ color: '#c8d0e0' }}>{selected.exchange ?? '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action */}
+                <div style={{ flex: 1, padding: '12px 16px', background: '#0d1225', border: '1px solid #1a2040', borderRadius: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.12em', marginBottom: 6 }}>ACTION</div>
+                  {myRoster.has(selected.id) ? (
+                    <div style={{ fontSize: 10, color: '#2a3555', lineHeight: 1.6 }}>On your roster.<br/>Manage via<br/>Waiver Wire.</div>
+                  ) : allOwnership[selected.id] ? (
+                    <div style={{ fontSize: 10, color: '#2a3555', lineHeight: 1.6 }}>Drafted by<br/>{allOwnership[selected.id]}.<br/>Not available.</div>
+                  ) : (
+                    <a href="/dashboard" style={{ display: 'block', padding: '8px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', background: '#0d1f15', border: '1px solid #00ff8840', borderRadius: 4, color: '#00ff88', textDecoration: 'none', textAlign: 'center', marginTop: 'auto' }}>
+                      CLAIM ON WAIVERS →
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
 
