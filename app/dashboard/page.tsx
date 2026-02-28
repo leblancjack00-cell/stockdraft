@@ -68,6 +68,7 @@ export default function Dashboard() {
   const [txMsg, setTxMsg] = useState('')
 
   const [leagues, setLeagues] = useState<any[]>([])
+  const [leagueMembers, setLeagueMembers] = useState<any[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
   const [leagueName, setLeagueName] = useState('')
@@ -155,6 +156,7 @@ export default function Dashboard() {
 
       const { data: members } = await supabase
         .from('league_members').select('*').eq('league_id', leagueId)
+      setLeagueMembers(members ?? [])
       const { data: allMatchupsAll } = await supabase
         .from('matchups').select('*').eq('league_id', leagueId)
       const { data: allScores } = await supabase
@@ -319,8 +321,10 @@ export default function Dashboard() {
               {(myRoster ?? []).map((stock: any, i: number) => {
                 const price = prices?.[stock.stocks?.ticker]
                 const pos = price?.changePct >= 0
+                const isOnMyRoster = true
                 return (
                   <span key={i} style={{ fontSize: 11, color: '#4a5568', letterSpacing: '0.06em' }}>
+                    {isOnMyRoster && <span style={{ color: '#00ff88', marginRight: 4, fontSize: 8 }}>●</span>}
                     <span style={{ color: '#a0b4d0', fontWeight: 700 }}>{stock.stocks?.ticker}</span>
                     {price && <span style={{ color: pos ? '#00ff88' : '#ff4466', marginLeft: 6 }}>{pos ? '▲' : '▼'} {Math.abs(price.changePct).toFixed(2)}%</span>}
                     {price && <span style={{ color: '#2a3555', marginLeft: 6 }}>${price.close.toFixed(2)}</span>}
@@ -336,6 +340,21 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {matchup && (
+        <div style={{ background: '#0a0d1a', borderBottom: '1px solid #1a2040', padding: '0 24px', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+            <span style={{ color: '#2a3555', letterSpacing: '0.1em', fontSize: 10 }}>WK {matchup?.week ?? 1}</span>
+            <span style={{ color: '#1a2535' }}>·</span>
+            <span style={{ color: isWinning ? '#fff' : '#4a5568', fontWeight: 700 }}>{myMember?.team_name ?? 'YOU'}</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: isWinning ? '#00ff88' : '#c8d0e0', marginLeft: 4 }}>{myTotal.toFixed(1)}</span>
+          </div>
+          <div style={{ fontSize: 9, color: '#2a3555', letterSpacing: '0.15em', padding: '3px 10px', border: `1px solid ${isWinning ? '#00ff8840' : '#ff446640'}`, borderRadius: 3, color: isWinning ? '#00ff88' : '#ff4466' }}>{isWinning ? 'WINNING' : 'LOSING'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+            <span style={{ fontSize: 15, fontWeight: 900, color: !isWinning ? '#00ff88' : '#c8d0e0', marginRight: 4 }}>{oppTotal.toFixed(1)}</span>
+            <span style={{ color: !isWinning ? '#fff' : '#4a5568', fontWeight: 700 }}>{opponent?.team_name ?? 'OPP'}</span>
+          </div>
+        </div>
+      )}
       <div style={{ background: '#0a0d1a', borderBottom: '1px solid #14182e', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, flexShrink: 0, overflowX: 'auto' }}>
         <span style={{ color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>SEASON PROGRESS</span>
         {Array.from({ length: 13 }, (_, i) => (
@@ -640,8 +659,8 @@ export default function Dashboard() {
             <>
               {txMsg && <div style={{ padding: '8px 16px', background: '#081a10', border: '1px solid #00ff8840', borderRadius: 6, fontSize: 11, color: '#00ff88' }}>{txMsg}</div>}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.1em' }}>FREE AGENTS · {freeAgents.length} AVAILABLE</span>
-                <span style={{ fontSize: 11, color: '#4a5568' }}>MY ROSTER · {myRoster.length} STOCKS</span>
+                <span style={{ fontSize: 11, color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WAIVER WIRE · {freeAgents.length} AVAILABLE</span>
+                <span style={{ fontSize: 11, color: '#2a3555', letterSpacing: '0.08em' }}>CLAIMS PROCESS SUN 12:01 AM · MY ROSTER: {myRoster.length}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div style={cardStyle}>
@@ -669,7 +688,7 @@ export default function Dashboard() {
                           <div style={{ textAlign: 'right', fontSize: 11, color: '#c8d0e0' }}>{price ? `$${price.close.toFixed(2)}` : '—'}</div>
                           <div style={{ textAlign: 'right', fontSize: 11, color: price ? (isPos ? '#00ff88' : '#ff4466') : '#2a3555' }}>{price ? `${isPos ? '▲' : '▼'} ${Math.abs(price.changePct).toFixed(1)}%` : '—'}</div>
                           <div style={{ textAlign: 'right' }}>
-                            <div onClick={() => setAdding(isAddingThis ? null : stock.id)} style={{ display: 'inline-flex', padding: '4px 10px', fontSize: 9, background: '#0d1f15', border: '1px solid #00ff8840', borderRadius: 3, color: '#00ff88', cursor: 'pointer', letterSpacing: '0.08em' }}>+ ADD</div>
+                            <div onClick={() => setAdding(isAddingThis ? null : stock.id)} style={{ display: 'inline-flex', padding: '4px 10px', fontSize: 9, background: '#0d1f15', border: '1px solid #00ff8840', borderRadius: 3, color: '#00ff88', cursor: 'pointer', letterSpacing: '0.08em' }}>CLAIM</div>
                           </div>
                         </div>
                         {isAddingThis && (
@@ -710,7 +729,7 @@ export default function Dashboard() {
                           <div style={{ textAlign: 'right', fontSize: 11, color: '#c8d0e0' }}>{price ? `$${price.close.toFixed(2)}` : '—'}</div>
                           <div style={{ textAlign: 'right', fontSize: 11, color: price ? (isPos ? '#00ff88' : '#ff4466') : '#2a3555' }}>{price ? `${isPos ? '▲' : '▼'} ${Math.abs(price.changePct).toFixed(1)}%` : '—'}</div>
                           <div style={{ textAlign: 'right' }}>
-                            <div onClick={() => setDropping(isDroppingThis ? null : slot.id)} style={{ display: 'inline-flex', padding: '4px 10px', fontSize: 9, background: '#1a0d10', border: '1px solid #ff446640', borderRadius: 3, color: '#ff4466', cursor: 'pointer', letterSpacing: '0.08em' }}>DROP</div>
+                            <div onClick={() => setDropping(isDroppingThis ? null : slot.id)} style={{ display: 'inline-flex', padding: '4px 10px', fontSize: 9, background: '#1a0d10', border: '1px solid #ff446640', borderRadius: 3, color: '#ff4466', cursor: 'pointer', letterSpacing: '0.08em' }}>RELEASE</div>
                           </div>
                         </div>
                         {isDroppingThis && (
@@ -839,14 +858,14 @@ export default function Dashboard() {
             <div style={cardStyle}>
               <div style={cardHeaderStyle}><span style={cardTitleStyle}>League Members</span></div>
               <div>
-                {(leagues ?? []).map((m: any) => (
+                {(leagueMembers ?? []).map((m: any) => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #0f1530', background: m.user_id === session?.user?.id ? '#0d1f15' : 'transparent' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{m.team_name} {m.user_id === session?.user?.id && <span style={{ fontSize: 9, color: '#00ff88', marginLeft: 6 }}>YOU</span>}</div>
                       <div style={{ fontSize: 10, color: '#2a3555', marginTop: 2 }}>Joined {new Date(m.joined_at ?? m.created_at).toLocaleDateString()}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: '#4a5568' }}>
-                      {'Member'}
+                    <div style={{ fontSize: 11, color: m.user_id === league?.commissioner_id ? '#00ff88' : '#4a5568' }}>
+                      {m.user_id === league?.commissioner_id ? '⭐ Commissioner' : 'Member'}
                     </div>
                   </div>
                 ))}
